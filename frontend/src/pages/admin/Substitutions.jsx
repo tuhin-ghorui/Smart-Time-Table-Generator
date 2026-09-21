@@ -6,6 +6,7 @@ import { Spinner, Empty, StatusPill, timeFmt, fmtDate, todayStr, Alert } from '.
 export default function Substitutions() {
   const [date, setDate] = useState(todayStr());
   const [requests, setRequests] = useState(null);
+  const [attendance, setAttendance] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [detail, setDetail] = useState(null); // { request, candidates, assignment }
@@ -18,6 +19,21 @@ export default function Substitutions() {
       .get('/admin/requests', { params: { date: d } })
       .then((res) => setRequests(res.data.requests))
       .catch((err) => setError(err.response?.data?.error || 'Failed to load requests.'));
+    api
+      .get('/admin/attendance', { params: { date: d } })
+      .then((res) => {
+        const counts = (res.data.teachers || []).reduce(
+          (acc, t) => {
+            if (t.status === 'present') acc.present += 1;
+            else if (t.status === 'absent' || t.status === 'leave') acc.absent += 1;
+            else acc.unmarked += 1;
+            return acc;
+          },
+          { present: 0, absent: 0, unmarked: 0 }
+        );
+        setAttendance({ ...counts, total: res.data.teachers?.length || 0 });
+      })
+      .catch(() => setAttendance(null));
   };
   useEffect(() => load(date), [date]);
   useEffect(() => { setError(''); setNotice(''); }, [date]);
@@ -55,7 +71,7 @@ export default function Substitutions() {
     <Layout active="Substitutions">
       <h1 style={{ fontSize: 22 }}>Substitution Management</h1>
       <p className="muted" style={{ margin: '4px 0 12px' }}>
-        Uncovered classes become substitution requests. AI recommends candidates — you decide. AI never finalizes.
+        Uncovered classes become substitution requests. Pick a present teacher to cover — you decide.
       </p>
       <div className="toolbar">
         <div className="field">
@@ -63,6 +79,17 @@ export default function Substitutions() {
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
       </div>
+
+      {attendance && (
+        <div className="card" style={{ marginBottom: 12, padding: '10px 14px' }}>
+          <strong>Faculty status · {fmtDate(date)}: </strong>
+          <span className="pill emerald"><span className="dot" />Present {attendance.present}</span>{' '}
+          <span className="pill red"><span className="dot" />Absent {attendance.absent}</span>{' '}
+          <span className="pill slate"><span className="dot" />Unmarked {attendance.unmarked}</span>{' '}
+          <span className="muted small">— only teachers marked Present are eligible as substitutes.</span>
+        </div>
+      )}
+
       <Alert type="error">{error}</Alert>
       <Alert type="success">{notice}</Alert>
 
@@ -75,7 +102,7 @@ export default function Substitutions() {
           <table className="tbl">
             <thead>
               <tr>
-                <th>Time</th><th>Subject</th><th>Teacher (absent)</th><th>Section / Batch</th>
+                <th>Time</th><th>Subject</th><th>Teacher (absent)</th><th>Year · Section / Batch</th>
                 <th>Room</th><th>Type</th><th>Status</th><th></th>
               </tr>
             </thead>
@@ -85,13 +112,13 @@ export default function Substitutions() {
                   <td className="mono">{timeFmt(r.start_time)}–{timeFmt(r.end_time)}</td>
                   <td>{r.subject_name}</td>
                   <td>{r.teacher_name}</td>
-                  <td>{r.section_name}{r.batch_name ? ` · ${r.batch_name}` : '(full section)'}</td>
+                  <td>{r.year_name}{r.year_name ? ' · ' : ''}{r.section_name}{r.batch_name ? ` · ${r.batch_name}` : ' (full section)'}</td>
                   <td>{r.room_name}</td>
                   <td>{r.session_type}</td>
                   <td><StatusPill status={r.request_status} /></td>
                   <td>
                     <button className="btn sm primary" onClick={() => openDetail(r.request_id)}>
-                      Recommend & assign
+                      Assign
                     </button>
                   </td>
                 </tr>
@@ -108,7 +135,8 @@ export default function Substitutions() {
               <div>
                 <h3>Substitution Request #{detail.request.request_id}</h3>
                 <p className="muted small">
-                  {detail.request.subject_name} · {fmtDate(detail.request.date)} · {detail.request.section_name}
+                  {detail.request.subject_name} · {fmtDate(detail.request.date)} · {detail.request.year_name}
+                  {detail.request.year_name ? ' · ' : ''}{detail.request.section_name}
                   {detail.request.batch_name ? ` · ${detail.request.batch_name}` : ''} ·{' '}
                   {timeFmt(detail.request.start_time)}–{timeFmt(detail.request.end_time)} · {detail.request.room_name}
                 </p>
@@ -128,40 +156,32 @@ export default function Substitutions() {
                   </Alert>
                 ) : null}
 
-                <h4 style={{ margin: '18px 0 6px', fontSize: 13 }}>AI Suitability Ranking</h4>
+                <h4 style={{ margin: '18px 0 6px', fontSize: 13 }}>Present teachers</h4>
+                <p className="muted small" style={{ margin: '0 0 8px' }}>
+                  Teachers marked Present for {fmtDate(detail.request.date)} who are free and qualified for this slot. Absent, leave and unmarked teachers are excluded.
+                </p>
                 {!detail.candidates?.length ? (
-                  <Empty message="No eligible substitutes found meeting availability and qualification rules." />
+                  <Empty message="No present, available teacher found for this slot." />
                 ) : (
-                  detail.candidates.map((c) => (
-                    <div key={c.teacher_id} className="card" style={{ padding: '12px 14px', marginBottom: 10 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
-                        <div>
-                          <strong>{c.name}</strong>
-                          <span className="muted small" style={{ marginLeft: 8 }}>{c.department}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <div style={{ textAlign: 'right' }}>
-                            <strong style={{ fontSize: 18 }}>{c.score}</strong>
-                            <span className="muted small">/100</span>
-                            <div className="score-bar" style={{ width: 130 }}>
-                              <div className="score-fill" style={{ width: `${c.score}%` }} />
-                            </div>
+                  [...detail.candidates]
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map((c) => (
+                      <div key={c.teacher_id} className="card" style={{ padding: '12px 14px', marginBottom: 10 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                          <div>
+                            <strong>{c.name}</strong>
+                            <span className="muted small" style={{ marginLeft: 8 }}>{c.department}</span>
                           </div>
-                          <button className="btn primary sm" disabled={busy === `assign:${c.teacher_id}`} onClick={() => act(detail.request.request_id, c.teacher_id, 'assign')}>
-                            Assign pending
-                          </button>
-                          <button className="btn sm" disabled={busy === `override:${c.teacher_id}`} onClick={() => act(detail.request.request_id, c.teacher_id, 'override')}>
-                            Override
+                          <button
+                            className="btn primary sm"
+                            disabled={busy === `assign:${c.teacher_id}` || busy === `override:${c.teacher_id}`}
+                            onClick={() => act(detail.request.request_id, c.teacher_id, detail.request.request_status === 'filled' ? 'override' : 'assign')}
+                          >
+                            {detail.request.request_status === 'filled' ? 'Override' : 'Assign'}
                           </button>
                         </div>
                       </div>
-                      <div className="badge-row" style={{ marginTop: 8 }}>
-                        {c.reasons.map((r, i) => (
-                          <span className="reason-chip" key={i}>{r}</span>
-                        ))}
-                      </div>
-                    </div>
-                  ))
+                    ))
                 )}
 
                 {detail.request.request_status === 'open' && (

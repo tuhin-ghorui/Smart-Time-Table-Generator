@@ -24,11 +24,11 @@ async function recommendations(requestId, date) {
   if (!reqRow) return { error: 'Substitution request not found.' };
 
   const day = dayNameOf(date || reqRow.date);
-  const absentTeachers = await query(
-    `SELECT teacher_id FROM attendance_records WHERE date = ? AND status IN ('absent', 'leave')`,
+  const presentTeachers = await query(
+    `SELECT teacher_id FROM attendance_records WHERE date = ? AND status = 'present'`,
     [date || reqRow.date]
   );
-  const absentSet = new Set(absentTeachers.map((t) => t.teacher_id));
+  const presentSet = new Set(presentTeachers.map((t) => t.teacher_id));
   const daySlots = await query(
     `SELECT ts.* FROM timetable_slots ts
      WHERE ts.day = ? AND ts.is_published = 1 AND ts.status <> 'Cancelled'`,
@@ -76,7 +76,7 @@ async function recommendations(requestId, date) {
 
   for (const t of teachers) {
     if (t.id === reqRow.original_teacher_id) continue;
-    if (absentSet.has(t.id)) continue;
+    if (!presentSet.has(t.id)) continue;
 
     const mySlots = daySlots.filter((s) => s.teacher_id === t.id);
 

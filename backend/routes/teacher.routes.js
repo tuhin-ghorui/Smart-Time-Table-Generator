@@ -26,6 +26,64 @@ async function teacherIdFor(req) {
   return t?.id || null;
 }
 
+router.post('/attendance', authRequired, async (req, res) => {
+  try {
+    const { date, status } = req.body || {};
+    if (!date || !status) return res.status(400).json({ error: 'date and status are required.' });
+    const valid = ['present', 'absent'];
+    if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid status.' });
+    if (date !== todayStr()) return res.status(400).json({ error: 'You can mark attendance for today only.' });
+
+    const userId = req.user.id;
+    const teacher = await queryOne('SELECT id, user_id FROM teachers WHERE user_id = ?', [userId]);
+    if (!teacher) return res.status(404).json({ error: 'Teacher profile not found.' });
+
+    const existing = await queryOne('SELECT * FROM attendance_records WHERE teacher_id = ? AND date = ?', [teacher.id, date]);
+    if (existing) {
+      return res.status(409).json({ error: `You already marked yourself ${existing.status} for today. Your status cannot be changed.` });
+    }
+    await query(`INSERT INTO attendance_records (teacher_id, date, status, reason, source) VALUES (?, ?, ?, ?, 'teacher')`,
+      [teacher.id, date, status, null]);
+
+    const teacherName = await queryOne('SELECT u.name FROM teachers t JOIN users u ON u.id = t.user_id WHERE t.id = ?', [teacher.id]);
+
+    await log({
+      user: req.user, action: 'teacher_attendance_update', entity: `teacher:${teacher.id}`,
+      new_value: status,
+      reason: `Teacher marked ${status} for ${date}`,
+    });
+
+    await notifyAdmins('attendance', `${teacherName?.name || 'Teacher'} marked ${status} for ${date}.`);
+
+    let autoCreated = 0;
+    if (status === 'absent') {
+      const day = dayNameOf(date);
+      const slots = await query(
+        `SELECT id FROM timetable_slots WHERE teacher_id = ? AND day = ? AND status <> 'Cancelled'`,
+        [teacher.id, day]);
+      for (const slot of slots) {
+        const existing = await queryOne(
+          `SELECT id FROM substitution_requests WHERE timetable_slot_id = ? AND date = ?`, [slot.id, date]);
+        if (!existing) {
+          await query(
+            `INSERT INTO substitution_requests (timetable_slot_id, date, status, reason) VALUES (?, ?, 'open', ?)`,
+            [slot.id, date, `Teacher marked ${status} on ${date}`]);
+          autoCreated++;
+        }
+      }
+    }
+
+    return res.json({
+      ok: true,
+      message: `${teacherName?.name || 'Teacher'} marked ${status} for ${date}.`,
+      auto_created_requests: autoCreated,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to update attendance.' });
+  }
+});
+
 router.get('/dashboard', async (req, res) => {
   try {
     const tid = await teacherIdFor(req);
@@ -43,8 +101,8 @@ router.get('/dashboard', async (req, res) => {
     const accepted = await query(
       `SELECT COUNT(*) AS cnt FROM substitution_assignments sa
        WHERE sa.teacher_id = ? AND sa.status = 'accepted'`, [tid]);
-    const unread = await query(
-      `SELECT COUNT(*) AS cnt FROM notifications WHERE user_id = ? AND \`read\` = 0`, [req.user.id]);
+    const attendance = await queryOne(
+      `SELECT status, synced_at FROM attendance_records WHERE teacher_id = ? AND date = ?`, [tid, todayStr()]);
 
     return res.json({
       today: day,
@@ -52,7 +110,8 @@ router.get('/dashboard', async (req, res) => {
       hours_today: slots.length,
       pending_subs: pending[0]?.cnt || 0,
       active_subs: accepted[0]?.cnt || 0,
-      unread: unread[0]?.cnt || 0,
+      attendance_status: attendance?.status || 'unmarked',
+      attendance_updated: attendance?.synced_at || null,
       today_slots: slots,
     });
   } catch (err) {
@@ -215,35 +274,6 @@ router.post('/assignments/:id/respond', async (req, res) => {
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Failed to respond to assignment.' });
-  }
-});
-
-router.get('/notifications', async (req, res) => {
-  try {
-    const rows = await query(
-      `SELECT id, type, message, \`read\`, created_at FROM notifications
-       WHERE user_id = ? ORDER BY created_at DESC LIMIT 100`, [req.user.id]);
-    return res.json({ notifications: rows });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to load notifications.' });
-  }
-});
-
-router.post('/notifications/:id/read', async (req, res) => {
-  try {
-    await query(`UPDATE notifications SET \`read\` = 1 WHERE id = ? AND user_id = ?`, [req.params.id, req.user.id]);
-    return res.json({ ok: true });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to update notification.' });
-  }
-});
-
-router.post('/notifications/read-all', async (req, res) => {
-  try {
-    await query(`UPDATE notifications SET \`read\` = 1 WHERE user_id = ?`, [req.user.id]);
-    return res.json({ ok: true });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to update notifications.' });
   }
 });
 

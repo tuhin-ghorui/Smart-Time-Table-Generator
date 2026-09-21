@@ -3,6 +3,10 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Alert } from '../components/ui';
 
+// Demo credentials (kept in comments for now):
+//   Admin   -> admin@campustime.test    / admin123
+//   Teacher -> teacher1@campustime.test / c   (teacher1..teacher8, all use teacher123)
+
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -25,11 +29,6 @@ export default function Login() {
     }
   };
 
-  const fill = (em, pw) => {
-    setEmail(em);
-    setPassword(pw);
-  };
-
   return (
     <div className="login-page">
       <div className="login-card">
@@ -44,27 +43,17 @@ export default function Login() {
         <form onSubmit={submit}>
           <div className="field">
             <label className="field-label">Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@campustime.test" required autoFocus />
           </div>
           <div className="field">
             <label className="field-label">Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
           </div>
           <Alert type="error">{error}</Alert>
           <button type="submit" className="btn primary" style={{ width: '100%', justifyContent: 'center' }} disabled={busy}>
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
-
-        <div className="demo-hint">
-          <strong>Demo accounts</strong><br />
-          <div style={{ marginTop: 6 }}>
-            Admin: <code>admin@campustime.test</code> / <code>admin123</code><br />
-            Teacher: <code>teacher1@campustime.test</code> / <code>teacher123</code><br /><br />
-            <button type="button" className="btn sm" onClick={() => fill('admin@campustime.test', 'admin123')}>Fill admin</button>{' '}
-            <button type="button" className="btn sm" onClick={() => fill('teacher1@campustime.test', 'teacher123')}>Fill teacher</button>
-          </div>
-        </div>
 
         <div style={{ marginTop: 14, textAlign: 'center' }}>
           <Link to="/" className="small muted">← View public timetable (no login)</Link>

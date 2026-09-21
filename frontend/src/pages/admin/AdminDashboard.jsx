@@ -33,7 +33,6 @@ export default function AdminDashboard() {
             <Metric label="Affected Classes" value={data.affected_classes} tone={data.affected_classes ? 'warn' : ''} />
             <Metric label="Uncovered Classes" value={data.uncovered_classes} tone={data.uncovered_classes ? 'warn' : ''} />
             <Metric label="Substitutes Assigned" value={data.substitutes_assigned} tone="ok" />
-            <Metric label="Pending Approval" value={data.pending_approval} tone={data.pending_approval ? 'warn' : ''} />
           </div>
 
           <div className="grid-2">
@@ -42,9 +41,7 @@ export default function AdminDashboard() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <Link to="/admin/attendance" className="btn" style={{ justifyContent: 'flex-start' }}>Mark faculty attendance</Link>
                 <Link to="/admin/substitutions" className="btn" style={{ justifyContent: 'flex-start' }}>Generate uncovered classes & assign substitutes</Link>
-                <Link to="/admin/approvals" className="btn" style={{ justifyContent: 'flex-start' }}>Approve pending timetable changes ({data.pending_approval})</Link>
-                <Link to="/admin/timetable" className="btn" style={{ justifyContent: 'flex-start' }}>Edit timetable</Link>
-                <Link to="/admin/batches" className="btn" style={{ justifyContent: 'flex-start' }}>Manage batches</Link>
+                <Link to="/admin/history" className="btn" style={{ justifyContent: 'flex-start' }}>Review change history</Link>
               </div>
             </div>
 

@@ -47,9 +47,6 @@ export default function Layout({ children, active }) {
             <NavLink to="/teacher/assignments" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <span className="ico">⇄</span> Substitute Assignments
             </NavLink>
-            <NavLink to="/teacher/notifications" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              <span className="ico">🔔</span> Notifications
-            </NavLink>
           </Section>
         )}
 
@@ -65,20 +62,8 @@ export default function Layout({ children, active }) {
               <NavLink to="/admin/substitutions" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
                 <span className="ico">⇄</span> Substitutions
               </NavLink>
-              <NavLink to="/admin/timetable" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-                <span className="ico">🗓</span> Timetable Editor
-              </NavLink>
-              <NavLink to="/admin/batches" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-                <span className="ico">♺</span> Batch Management
-              </NavLink>
-              <NavLink to="/admin/approvals" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-                <span className="ico">◎</span> Pending Approvals
-              </NavLink>
               <NavLink to="/admin/history" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
                 <span className="ico">↺</span> Change History
-              </NavLink>
-              <NavLink to="/admin/notifications" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-                <span className="ico">🔔</span> Notifications
               </NavLink>
             </Section>
           </>

@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 import PublicLayout from '../../components/PublicLayout';
 import StructureSelector from '../../components/StructureSelector';
 import PdfButton from '../../components/PdfButton';
-import { Spinner, Empty, StatusPill, timeFmt, fmtDate, todayStr, Alert } from '../../components/ui';
+import SlotRow from '../../components/SlotRow';
+import { Spinner, Empty, StatusPill, fmtDate, todayStr, Alert } from '../../components/ui';
 
 export default function PublicTimetable() {
-  const [view, setView] = useState('today');
+  const navigate = useNavigate();
   const [sel, setSel] = useState(null);
   const [data, setData] = useState(null);
   const [changes, setChanges] = useState(null);
@@ -24,7 +26,7 @@ export default function PublicTimetable() {
           academic_year_id: sel.yearId,
           section_id: sel.sectionId,
           batch_id: sel.batchId || undefined,
-          view,
+          view: 'today',
           date: today,
         },
       }),
@@ -36,33 +38,19 @@ export default function PublicTimetable() {
       })
       .catch((err) => setError(err.response?.data?.error || 'Failed to load timetable.'))
       .finally(() => setLoading(false));
-  }, [sel?.yearId, sel?.sectionId, sel?.batchId, view]);
+  }, [sel?.yearId, sel?.sectionId, sel?.batchId]);
 
   const slots = data?.slots || [];
   const meta = data?.meta || {};
 
-  const renderSlot = (slot) => (
-    <div className="slot-row" key={slot.id}>
-      <div className="slot-time">
-        {timeFmt(slot.start_time)}
-        <br />
-        <span className="muted" style={{ fontWeight: 400 }}>{timeFmt(slot.end_time)}</span>
-      </div>
-      <div className="slot-main">
-        <div className="slot-subject">{slot.subject_name}</div>
-        <div className="slot-meta">
-          {slot.teacher_name} · {slot.room_name}{slot.room_type === 'lab' ? ' (Lab)' : ''}
-          {slot.batch_name ? ` · ${slot.batch_name}` : ''}
-        </div>
-      </div>
-      <div className="slot-side">
-        <span className={`slot-tag ${String(slot.session_type).toLowerCase().includes('pract') ? 'lab' : ''}`}>
-          {slot.session_type}
-        </span>
-        <StatusPill status={slot.status} />
-      </div>
-    </div>
-  );
+  const goWeekly = () => {
+    const params = new URLSearchParams();
+    if (sel?.courseId) params.set('course', sel.courseId);
+    if (sel?.yearId) params.set('year', sel.yearId);
+    if (sel?.sectionId) params.set('section', sel.sectionId);
+    if (sel?.batchId) params.set('batch', sel.batchId);
+    navigate(`/timetable/week?${params.toString()}`);
+  };
 
   return (
     <PublicLayout>
@@ -74,12 +62,10 @@ export default function PublicTimetable() {
       <StructureSelector onChange={setSel} />
 
       <div className="toolbar">
-        <div className="seg">
-          <button className={view === 'today' ? 'active' : ''} onClick={() => setView('today')}>Today</button>
-          <button className={view === 'week' ? 'active' : ''} onClick={() => setView('week')}>Weekly</button>
-        </div>
+        <button className="btn sm" onClick={goWeekly} disabled={!sel?.sectionId}>
+          Weekly timetable →
+        </button>
         <PdfButton kind="daily" params={{ academic_year_id: sel?.yearId, section_id: sel?.sectionId, batch_id: sel?.batchId }} label="Daily PDF" />
-        <PdfButton kind="weekly" params={{ academic_year_id: sel?.yearId, section_id: sel?.sectionId, batch_id: sel?.batchId }} label="Weekly PDF" />
       </div>
 
       <Alert type="error">{error}</Alert>
@@ -98,22 +84,13 @@ export default function PublicTimetable() {
                 {meta.course_name} · {meta.year_name} · Section {meta.section_name}
                 {meta.batch_name ? ` · ${meta.batch_name}` : ''}
                 <span className="muted small" style={{ marginLeft: 8 }}>
-                  {view === 'today' ? `Today · ${fmtDate(data.date)} · ${dayName()}` : 'Weekly view'}
+                  Today · {fmtDate(data.date)} · {dayName()}
                 </span>
               </span>
             </div>
           </div>
 
-          {view === 'today' ? (
-            slots.length ? slots.map(renderSlot) : <Empty message="No classes scheduled today." />
-          ) : (
-            (Array.isArray(slots) ? slots : []).map((day) => (
-              <div className="grid-day" key={day.date}>
-                <h4>{day.day} · {fmtDate(day.date)}</h4>
-                {day.slots.length ? day.slots.map(renderSlot) : <Empty message="No classes." />}
-              </div>
-            ))
-          )}
+          {slots.length ? slots.map((slot) => <SlotRow slot={slot} key={slot.id} />) : <Empty message="No classes scheduled today." />}
         </>
       ) : null}
 
